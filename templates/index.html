@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sinhala Grammar & Spell Checker</title>
+    <!-- Google Fonts for premium typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Sinhala:wght@400;600;700&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="glass-bg"></div>
+    
+    <div class="container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="logo-area">
+                <span class="logo-icon"></span>
+                <h1>සිංහල Grammar Checker</h1>
+            </div>
+            <p class="subtitle">Upload a Sinhala text or Word document file to verify spelling and grammar instantly.</p>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="app-main">
+            <!-- Upload Card -->
+            <section class="card upload-card">
+                <form action="{{ url_for('index') }}" method="POST" enctype="multipart/form-data" id="upload-form">
+                    <div class="drop-zone" id="drop-zone">
+                        <div class="drop-zone-content">
+                            <span class="upload-icon">📂</span>
+                            <h3>Drag & Drop your .txt or .docx file here</h3>
+                            <p>or click to browse local files</p>
+                            <input type="file" name="file" id="file-input" accept=".txt,.docx" style="display: none;">
+                        </div>
+                    </div>
+                    
+                    <div class="file-info" id="file-info" style="display: none;">
+                        <span class="file-icon">📄</span>
+                        <span id="file-name" class="file-name">Selected_file.txt</span>
+                    </div>
+
+                    {% if error_message %}
+                    <div class="alert alert-error">
+                        <span class="alert-icon">⚠️</span>
+                        <span class="alert-text">{{ error_message }}</span>
+                    </div>
+                    {% endif %}
+
+                    <div class="action-bar">
+                        <a href="{{ url_for('download_sample') }}" class="btn btn-secondary">
+                            <span>⬇️ Sample .TXT</span>
+                        </a>
+                        <a href="{{ url_for('download_sample_docx') }}" class="btn btn-secondary">
+                            <span>⬇️ Sample .DOCX</span>
+                        </a>
+                        <button type="submit" class="btn btn-primary" id="submit-btn">
+                            <span>Check Grammar 🚀</span>
+                        </button>
+                    </div>
+                </form>
+            </section>
+
+            <!-- Results Section -->
+            {% if has_results %}
+            <section class="results-section">
+                <div class="results-header">
+                    <h2>Checker Analysis</h2>
+                    {% if incorrect_words %}
+                    <span class="badge badge-error">{{ incorrect_words|length }} Issues Found</span>
+                    {% else %}
+                    <span class="badge badge-success">Perfect Spelling!</span>
+                    {% endif %}
+                </div>
+
+                <div class="grid grid-2-col">
+                    <!-- Original Text -->
+                    <div class="card result-card">
+                        <div class="card-header">
+                            <h3>Original Text</h3>
+                        </div>
+                        <div class="card-body raw-text-container">
+                            <p class="raw-text">{{ original_text }}</p>
+                        </div>
+                    </div>
+
+                    <!-- Corrected Text -->
+                    <div class="card result-card">
+                        <div class="card-header">
+                            <h3>Corrected / Highlighted Text</h3>
+                        </div>
+                        <div class="card-body result-text-container">
+                            <p class="result-text">{{ corrected_text_html|safe }}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Flagged Words List -->
+                {% if incorrect_words %}
+                <div class="card flagged-card">
+                    <div class="card-header">
+                        <h3>Flagged Words (Not in Dictionary)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="flagged-words-list">
+                            {% for word in incorrect_words %}
+                            <span class="flagged-word-item">
+                                <span class="flagged-icon">❌</span>
+                                <span class="flagged-word">{{ word }}</span>
+                            </span>
+                            {% endfor %}
+                        </div>
+                        <p class="tip-text">💡 Tip: You can append these words to <code>dictionary/sinhala_words.txt</code> to add them to the spell checker's vocabulary.</p>
+                    </div>
+                </div>
+                {% endif %}
+            </section>
+            {% endif %}
+        </main>
+
+        <footer class="app-footer">
+            <p>Sinhala Spell & Grammar Checker &copy; 2026. Made with Flask & Vanilla CSS.</p>
+        </footer>
+    </div>
+
+    <!-- Drag & Drop Interactive Logic -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const dropZone = document.getElementById('drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const fileInfo = document.getElementById('file-info');
+            const fileName = document.getElementById('file-name');
+            const uploadForm = document.getElementById('upload-form');
+            const submitBtn = document.getElementById('submit-btn');
+
+            // Trigger browse window on click
+            dropZone.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            // Prevent default drag behaviors
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            // Add/remove visual highlights
+            ['dragenter', 'dragover'].forEach(eventName => {
+                dropZone.addEventListener(eventName, highlight, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                dropZone.addEventListener(eventName, unhighlight, false);
+            });
+
+            function highlight() {
+                dropZone.classList.add('drag-over');
+            }
+
+            function unhighlight() {
+                dropZone.classList.remove('drag-over');
+            }
+
+            // Handle dropped files
+            dropZone.addEventListener('drop', handleDrop, false);
+
+            function handleDrop(e) {
+                const dt = e.dataTransfer;
+                const files = dt.files;
+
+                if (files.length > 0) {
+                    fileInput.files = files;
+                    updateFileInfo();
+                }
+            }
+
+            // Handle file input changes
+            fileInput.addEventListener('change', updateFileInfo);
+
+            function updateFileInfo() {
+                if (fileInput.files.length > 0) {
+                    const file = fileInput.files[0];
+                    if (file.name.endsWith('.txt') || file.name.endsWith('.docx')) {
+                        fileName.textContent = `${file.name} (${(file.size / 1024).toFixed(2)} KB)`;
+                        fileInfo.style.display = 'flex';
+                        fileInfo.classList.remove('file-error');
+                    } else {
+                        fileName.textContent = 'Invalid file type. Please select a .txt or .docx file.';
+                        fileInfo.style.display = 'flex';
+                        fileInfo.classList.add('file-error');
+                        fileInput.value = ''; // Reset input
+                    }
+                } else {
+                    fileInfo.style.display = 'none';
+                }
+            }
+
+            // Form validation
+            uploadForm.addEventListener('submit', (e) => {
+                if (fileInput.files.length === 0) {
+                    e.preventDefault();
+                    alert('Please select or drag a Sinhala file (.txt or .docx) first.');
+                } else {
+                    submitBtn.classList.add('btn-loading');
+                    submitBtn.innerHTML = '<span>Processing... ⏳</span>';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
