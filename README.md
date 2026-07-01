@@ -2,6 +2,10 @@
 
 A Vite + React landing page inspired by ocean-themed visuals and immersive UI design.
 
+## Live Demo
+
+https://anti-pied.vercel.app
+
 ## Features
 - Modern ocean-themed landing experience
 - Responsive layout
